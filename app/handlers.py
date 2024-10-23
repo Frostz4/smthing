@@ -1,56 +1,25 @@
+from gc import callbacks
 from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 import app.keyboard as kb
+import app.database.requests as rq
 
 router = Router()
 
-class Register(StatesGroup):
-    name = State()
-    age = State()
-    number = State()
-
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer('Здравствуйте!')
-    await message.reply('Что вас интересует?', reply_markup=kb.main)
-
-@router.message(Command('help'))
-async def cmd_help(message: Message):
-    await message.answer('Вы ввели команду помощи')
+    await rq.set_user(message.from_user.id)
+    await message.answer('Здравствуйте! Добро пожаловать магазин комплектующих для пк! Что вас интересует?', reply_markup=kb.main)
     
-@router.message(F.text == 'Каталог')
-async def catalog(message: Message):
-    await message.answer('Выберите категорию товаров', reply_markup=kb.catalog)
-    
-@router.callback_query(F.data == 'components')
-async def t_shirt(callback: CallbackQuery):
-    await callback.answer('Вы выбрали категорию', show_alert=True)
-    await callback.message.answer('Вы выбрали категорию комплектующих.')
-    
-@router.message(Command('register'))
-async def register(message: Message, state: FSMContext):
-    await state.set_state(Register.name)
-    await message.answer('Введите ваше имя')
-    
-@router.message(Register.name)
-async def register_name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await state.set_state(Register.age)
-    await message.answer('Введите ваш возраст')
-    
-@router.message(Register.age)
-async def register_age(message: Message, state: FSMContext):
-    await state.update_data(age=message.text)
-    await state.set_state(Register.number)
-    await message.answer('Введите ваш номер телефона', reply_markup=kb.get_number)
-    
-@router.message(Register.number)
-async def register_number(message: Message, state: FSMContext):
-    await state.update_data(number=message.contact.phone_number)
-    data = await state.get_data()
-    await message.answer(f'Ваше имя: {data["name"]}\nВаш возраст: {data["age"]}\nНомер: {data["number"]}')
-    await state.clear()
+    @router.message(F.text == 'Каталог')
+    async def catalog(message: Message):
+        await message.answer('Выберите категорию товара', reply_markup=await kb.categories())
+        
+@router.callback_query(F.data.startswith('category_'))
+async def category(callbcak: CallbackQuery):
+    await callbacks.answer('Вы выбрали категорию')
+    await callbcak.message.answer('Выберите товар по категории',
+                                  reply_markup=await kb.items(callbacks.data.split('_')[1]))
